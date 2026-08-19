@@ -1,0 +1,40 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# MPU6050 IMU Driver Parameters
+# ─────────────────────────────────────────────────────────────────────────────
+
+mpu6050_node:
+  ros__parameters:
+    # I2C bus and address
+    i2c_bus: 1                 # /dev/i2c-1 (Pi 5 default)
+    i2c_address: 0x68          # AD0 → GND = 0x68, AD0 → VCC = 0x69
+
+    # Publishing
+    publish_rate: 50.0         # Hz (matches encoder publish rate)
+    frame_id: "imu_link"       # TF frame for IMU data
+
+    # Digital Low-Pass Filter (reduces vibration noise)
+    # 0 = 260Hz (no filter), 1 = 184Hz, 2 = 94Hz,
+    # 3 = 44Hz (recommended), 4 = 21Hz, 5 = 10Hz, 6 = 5Hz
+    dlpf_mode: 3
+
+    # Calibration: number of samples averaged at startup (robot must be STILL)
+    calibration_samples: 200
+
+    # Inversion flags: flip sign if IMU is mounted upside down or reversed
+    invert_gyro_z: false       # Matches ROS REP-103 and diff_drive wheel odometry (turning left = positive gz)
+    invert_gyro_x: false
+    invert_gyro_y: false
+
+    # Pre-computed calibration offsets (set to 0.0 to auto-calibrate at startup)
+    # After first run, copy the logged offsets here to skip calibration phase
+    gyro_offset_x: 0.0
+    gyro_offset_y: 0.0
+    gyro_offset_z: 0.0
+    accel_offset_x: 0.0
+    accel_offset_y: 0.0
+    accel_offset_z: 0.0
+
+    # Covariance (diagonal values for the 3x3 covariance matrix)
+    # Lower = more trust in sensor. Adjust empirically.
+    angular_velocity_covariance: 0.02     # rad/s noise
+    linear_acceleration_covariance: 0.04  # m/s² noise

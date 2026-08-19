@@ -1,0 +1,55 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# EKF Sensor Fusion Configuration (robot_localization)
+#
+# Filters wheel odometry (/odom) and broadcasts odom→base_footprint TF.
+#
+# The MPU6050 continues publishing /imu/data for diagnostics, but is not fused
+# until its physical axis and yaw sign have been verified. Fusing an unverified
+# gyro with wheel yaw can make the two measurements cancel and cause the laser
+# scan to rotate with the chassis in the map frame.
+# ─────────────────────────────────────────────────────────────────────────────
+
+ekf_filter_node:
+  ros__parameters:
+    frequency: 20.0               # 20 Hz update rate (eliminates CPU lag & missed update rate errors on Pi 5)
+    sensor_timeout: 0.1
+    transform_timeout: 0.2
+    predict_to_current_time: true # Eliminates TF extrapolation errors for SLAM matching
+    two_d_mode: true
+    publish_tf: true              # EKF broadcasts odom→base_footprint
+    publish_acceleration: false
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint
+    world_frame: odom             # EKF operates in odom frame
+
+    # ── Source 0: Wheel Odometry ────────────────────────────────────────────
+    # Fuse forward speed and yaw rate from encoder odometry. Hardware logs
+    # confirm this source follows REP-103: a counter-clockwise turn is +vyaw.
+    odom0: /odom
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  false, false,
+                   false, false, true,    # vyaw
+                   false, false, false]
+    odom0_differential: false
+    odom0_relative: false
+
+    # ── Process Noise Covariance (15x15 diagonal) ──────────────────────────
+    # Order: x, y, z, roll, pitch, yaw, vx, vy, vz, vroll, vpitch, vyaw, ax, ay, az
+    # Tune these values based on how much the robot's state changes unpredictably
+    process_noise_covariance: [0.05,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.05,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.06,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.03,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.03,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.06,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.025, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.025, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.04,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.01,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.01,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.02,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.01,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.01,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.015]

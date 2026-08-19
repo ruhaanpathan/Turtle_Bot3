@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+  <title>Robot Teleop + Map</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/nipplejs@0.10.2/dist/nipplejs.min.js"></script>
+
+  <style>
+    :root {
+      --bg-primary: #0a0e1a;
+      --bg-card: rgba(20, 27, 45, 0.85);
+      --bg-glass: rgba(255, 255, 255, 0.04);
+      --border-glass: rgba(255, 255, 255, 0.08);
+      --accent: #4f8cff;
+      --accent-glow: rgba(79, 140, 255, 0.35);
+      --accent-secondary: #7c5cfc;
+      --success: #34d399;
+      --danger: #f43f5e;
+      --danger-glow: rgba(244, 63, 94, 0.4);
+      --text-primary: #e8ecf4;
+      --text-secondary: #8192a8;
+      --text-dim: #4a5568;
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      height: 100%; overflow: hidden;
+      touch-action: none;
+      -webkit-user-select: none; user-select: none;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      display: flex; flex-direction: column;
+    }
+
+    /* ── Header ─────────────────────────── */
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-glass);
+      backdrop-filter: blur(20px);
+      z-index: 10;
+    }
+    .header-left { display: flex; align-items: center; gap: 8px; }
+    .robot-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; box-shadow: 0 2px 8px var(--accent-glow);
+    }
+    .header-title { font-size: 15px; font-weight: 600; }
+    .header-subtitle { font-size: 10px; color: var(--text-secondary); }
+    .status-badge {
+      display: flex; align-items: center; gap:6px; padding:5px 12px;
+      border-radius:20px; font-size:11px; font-weight:500;
+      background: var(--bg-glass); border:1px solid var(--border-glass);
+    }
+    .status-dot { width:8px; height:8px; border-radius:50%; background: var(--danger); transition: all .3s; }
+    .status-badge.connected .status-dot {
+      background: var(--success); box-shadow: 0 0 8px rgba(52,211,153,.6);
+      animation: pulse-dot 2s infinite;
+    }
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+    /* ── Telemetry ──────────────────────── */
+    .telemetry {
+      display: flex; gap:6px; padding:8px 16px;
+      background: var(--bg-card); border-bottom:1px solid var(--border-glass);
+    }
+    .telem-card {
+      flex:1; padding:6px 8px; border-radius:8px;
+      background: var(--bg-glass); border:1px solid var(--border-glass);
+      text-align: center;
+    }
+    .telem-label { font-size:9px; text-transform:uppercase; letter-spacing:1px; color:var(--text-secondary); margin-bottom:2px; }
+    .telem-value {
+      font-size:18px; font-weight:600; font-variant-numeric:tabular-nums;
+      background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    }
+    .telem-unit { font-size:10px; color:var(--text-dim); }
+
+    /* ── Live Map ───────────────────────── */
+    .map-container {
+      position: relative;
+      height: 30vh; min-height: 140px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-glass);
+      overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .map-container canvas {
+      max-width: 100%; max-height: 100%;
+      image-rendering: pixelated;
+    }
+    .map-placeholder {
+      color: var(--text-dim); font-size: 13px; font-weight: 500;
+      text-align: center;
+    }
+    .map-placeholder .icon { font-size: 28px; margin-bottom: 6px; }
+    .map-overlay {
+      position: absolute; bottom: 6px; left: 8px; right: 8px;
+      display: flex; justify-content: space-between; align-items: flex-end;
+      pointer-events: none;
+    }
+    .map-status {
+      font-size: 10px; color: var(--text-secondary);
+      background: rgba(10,14,26,.7); padding: 3px 8px; border-radius: 6px;
+    }
+    .map-buttons {
+      display: flex; gap: 6px; pointer-events: auto;
+    }
+    .map-btn {
+      padding: 6px 12px; border: 1px solid var(--border-glass);
+      border-radius: 8px; font-family:'Inter',sans-serif;
+      font-size: 11px; font-weight: 600; cursor: pointer;
+      backdrop-filter: blur(10px); transition: all .15s;
+      touch-action: manipulation;
+    }
+    .map-btn.save {
+      background: rgba(52,211,153,.15); color: var(--success);
+      border-color: rgba(52,211,153,.3);
+    }
+    .map-btn.save:active { background: rgba(52,211,153,.3); }
+    .map-btn.pause {
+      background: rgba(79,140,255,.15); color: var(--accent);
+      border-color: rgba(79,140,255,.3);
+    }
+    .map-btn.pause:active { background: rgba(79,140,255,.3); }
+    .map-btn.pause.paused {
+      background: rgba(244,63,94,.15); color: var(--danger);
+      border-color: rgba(244,63,94,.3);
+    }
+
+    /* ── Joystick ───────────────────────── */
+    .joystick-area {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      position: relative; min-height: 180px;
+      background: radial-gradient(ellipse at center, rgba(79,140,255,.03) 0%, transparent 70%);
+    }
+    .joystick-zone { width: 200px; height: 200px; position: relative; }
+    .joystick-ring {
+      position: absolute; inset: -16px; border-radius: 50%;
+      border: 1px solid var(--border-glass); pointer-events: none;
+    }
+    .dir-label {
+      position: absolute; font-size: 9px; font-weight: 500;
+      letter-spacing: 2px; text-transform: uppercase;
+      color: var(--text-dim); pointer-events: none;
+    }
+    .dir-label.top    { top:-36px; left:50%; transform:translateX(-50%); }
+    .dir-label.bottom { bottom:-36px; left:50%; transform:translateX(-50%); }
+    .dir-label.left   { left:-40px; top:50%; transform:translateY(-50%) rotate(-90deg); }
+    .dir-label.right  { right:-40px; top:50%; transform:translateY(-50%) rotate(90deg); }
+
+    /* ── Controls ───────────────────────── */
+    .controls-bar {
+      padding: 10px 16px 20px;
+      background: var(--bg-card); border-top: 1px solid var(--border-glass);
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .slider-row { display:flex; align-items:center; gap:10px; }
+    .slider-label { font-size:10px; font-weight:500; color:var(--text-secondary); min-width:50px; text-transform:uppercase; letter-spacing:.5px; }
+    .slider-wrap { flex:1; }
+    input[type="range"] {
+      -webkit-appearance:none; width:100%; height:5px; border-radius:3px;
+      background: rgba(255,255,255,.06); outline:none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance:none; width:20px; height:20px; border-radius:50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+      box-shadow: 0 2px 6px var(--accent-glow); cursor:pointer;
+    }
+    .slider-value { font-size:11px; font-weight:600; color:var(--text-primary); min-width:50px; text-align:right; font-variant-numeric:tabular-nums; }
+    .button-row { display:flex; gap:8px; }
+    .btn-stop {
+      flex:1; padding:12px; border:none; border-radius:var(--radius-sm);
+      font-family:'Inter',sans-serif; font-size:13px; font-weight:700;
+      letter-spacing:1px; text-transform:uppercase; cursor:pointer;
+      background: linear-gradient(135deg, var(--danger), #dc2626);
+      color: white; box-shadow: 0 4px 16px var(--danger-glow);
+      transition: all .15s; touch-action: manipulation;
+    }
+    .btn-stop:active { transform:scale(.97); }
+    .btn-reconnect {
+      padding:12px 16px; border:1px solid var(--border-glass);
+      border-radius:var(--radius-sm); font-family:'Inter',sans-serif;
+      font-size:13px; cursor:pointer; background:var(--bg-glass);
+      color:var(--text-secondary); touch-action:manipulation;
+    }
+
+    /* ── Toast ──────────────────────────── */
+    .toast {
+      position:fixed; top:60px; left:50%; z-index:100;
+      transform:translateX(-50%) translateY(-20px);
+      background:var(--bg-card); border:1px solid var(--border-glass);
+      backdrop-filter:blur(20px); padding:8px 18px;
+      border-radius:var(--radius-sm); font-size:12px; font-weight:500;
+      opacity:0; pointer-events:none; transition:all .3s;
+      white-space: nowrap;
+    }
+    .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+    @keyframes fade-in { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+    .telemetry,.controls-bar { animation: fade-in .4s ease; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="robot-icon">🤖</div>
+      <div>
+        <div class="header-title">Robot Teleop</div>
+        <div class="header-subtitle">Drive + SLAM Mapping</div>
+      </div>
+    </div>
+    <div class="status-badge" id="statusBadge">
+      <div class="status-dot"></div>
+      <span id="statusText">Connecting…</span>
+    </div>
+  </div>
+
+  <!-- Telemetry -->
+  <div class="telemetry">
+    <div class="telem-card">
+      <div class="telem-label">Linear</div>
+      <div class="telem-value" id="linVal">0.00</div>
+      <div class="telem-unit">m/s</div>
+    </div>
+    <div class="telem-card">
+      <div class="telem-label">Angular</div>
+      <div class="telem-value" id="angVal">0.00</div>
+      <div class="telem-unit">rad/s</div>
+    </div>
+    <div class="telem-card">
+      <div class="telem-label">Heading</div>
+      <div class="telem-value" id="headingVal">—</div>
+      <div class="telem-unit">direction</div>
+    </div>
+  </div>
+
+  <!-- Live Map -->
+  <div class="map-container" id="mapContainer">
+    <div class="map-placeholder" id="mapPlaceholder">
+      <div class="icon">🗺️</div>
+      <div>Waiting for SLAM map…</div>
+    </div>
+    <canvas id="mapCanvas" style="display:none;"></canvas>
+    <div class="map-overlay">
+      <span class="map-status" id="mapStatus"></span>
+      <div class="map-buttons">
+        <button class="map-btn pause" id="btnPause">⏸ Pause</button>
+        <button class="map-btn save" id="btnSave">💾 Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Joystick -->
+  <div class="joystick-area">
+    <div class="joystick-zone" id="joystickZone">
+      <div class="joystick-ring"></div>
+      <div class="dir-label top">FWD</div>
+      <div class="dir-label bottom">REV</div>
+      <div class="dir-label left">LEFT</div>
+      <div class="dir-label right">RIGHT</div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls-bar">
+    <div class="slider-row">
+      <div class="slider-label">Speed</div>
+      <div class="slider-wrap">
+        <input type="range" id="maxLinSlider" min="0.05" max="0.5" step="0.05" value="0.30">
+      </div>
+      <div class="slider-value" id="maxLinLabel">0.30 m/s</div>
+    </div>
+    <div class="slider-row">
+      <div class="slider-label">Turn</div>
+      <div class="slider-wrap">
+        <input type="range" id="maxAngSlider" min="0.2" max="2.0" step="0.1" value="1.0">
+      </div>
+      <div class="slider-value" id="maxAngLabel">1.00 rad/s</div>
+    </div>
+    <div class="button-row">
+      <button class="btn-stop" id="btnStop">⛔ STOP</button>
+      <button class="btn-reconnect" id="btnReconnect">↻</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ─── Config ──────────────────────────────────────
+    const WS_URL = `ws://${window.location.hostname}:9090`;
+    const PUBLISH_RATE_MS = 100;
+
+    // ─── DOM ─────────────────────────────────────────
+    const statusBadge  = document.getElementById('statusBadge');
+    const statusText   = document.getElementById('statusText');
+    const linVal       = document.getElementById('linVal');
+    const angVal       = document.getElementById('angVal');
+    const headingVal   = document.getElementById('headingVal');
+    const maxLinSlider = document.getElementById('maxLinSlider');
+    const maxAngSlider = document.getElementById('maxAngSlider');
+    const maxLinLabel  = document.getElementById('maxLinLabel');
+    const maxAngLabel  = document.getElementById('maxAngLabel');
+    const btnStop      = document.getElementById('btnStop');
+    const btnReconnect = document.getElementById('btnReconnect');
+    const btnSave      = document.getElementById('btnSave');
+    const btnPause     = document.getElementById('btnPause');
+    const toastEl      = document.getElementById('toast');
+    const mapCanvas    = document.getElementById('mapCanvas');
+    const mapPlaceholder = document.getElementById('mapPlaceholder');
+    const mapStatus    = document.getElementById('mapStatus');
+    const mapCtx       = mapCanvas.getContext('2d');
+
+    // ─── State ───────────────────────────────────────
+    let ws = null;
+    let publishInterval = null;
+    let currentLinear = 0, currentAngular = 0;
+    let maxLinear = parseFloat(maxLinSlider.value);
+    let maxAngular = parseFloat(maxAngSlider.value);
+    let isConnected = false;
+    let isPaused = false;
+
+    // ─── Toast ───────────────────────────────────────
+    let toastTO = null;
+    function showToast(msg, dur = 2500) {
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      clearTimeout(toastTO);
+      toastTO = setTimeout(() => toastEl.classList.remove('show'), dur);
+    }
+
+    // ─── WebSocket ───────────────────────────────────
+    function connect() {
+      if (ws) { try { ws.close(); } catch(e) {} }
+      statusText.textContent = 'Connecting…';
+      statusBadge.classList.remove('connected');
+      isConnected = false;
+
+      ws = new WebSocket(WS_URL);
+
+      ws.onopen = () => {
+        isConnected = true;
+        statusText.textContent = 'Connected';
+        statusBadge.classList.add('connected');
+        showToast('✅ Connected to robot');
+        startPublishing();
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'map') {
+            renderMap(data);
+          } else if (data.type === 'save_result') {
+            showToast(data.success ? `✅ ${data.message}` : `❌ ${data.message}`, 3000);
+            btnSave.disabled = false;
+            btnSave.textContent = '💾 Save';
+          } else if (data.type === 'pause_result') {
+            isPaused = data.paused;
+            btnPause.textContent = isPaused ? '▶ Resume' : '⏸ Pause';
+            btnPause.classList.toggle('paused', isPaused);
+            showToast(data.message);
+          }
+        } catch(e) {}
+      };
+
+      ws.onerror = () => {
+        statusText.textContent = 'Error';
+        statusBadge.classList.remove('connected');
+        isConnected = false;
+      };
+
+      ws.onclose = () => {
+        isConnected = false;
+        statusText.textContent = 'Disconnected';
+        statusBadge.classList.remove('connected');
+        stopPublishing();
+        showToast('🔴 Disconnected');
+        setTimeout(() => { if (!isConnected) connect(); }, 3000);
+      };
+    }
+
+    // ─── Publish cmd_vel ─────────────────────────────
+    function startPublishing() {
+      stopPublishing();
+      publishInterval = setInterval(publishCmdVel, PUBLISH_RATE_MS);
+    }
+    function stopPublishing() {
+      if (publishInterval) { clearInterval(publishInterval); publishInterval = null; }
+    }
+    function publishCmdVel() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({
+        linear_x: currentLinear,
+        angular_z: currentAngular,
+      }));
+    }
+
+    // ─── Map rendering ──────────────────────────────
+    function renderMap(m) {
+      const w = m.width, h = m.height;
+      mapCanvas.width = w;
+      mapCanvas.height = h;
+      mapCanvas.style.display = 'block';
+      mapPlaceholder.style.display = 'none';
+
+      const raw = Uint8Array.from(atob(m.data), c => c.charCodeAt(0));
+      const imgData = mapCtx.createImageData(w, h);
+      const px = imgData.data;
+
+      for (let y = 0; y < h; y++) {
+        const srcRow = (h - 1 - y) * w;
+        const dstRow = y * w;
+        for (let x = 0; x < w; x++) {
+          const val = raw[srcRow + x];
+          const i = (dstRow + x) * 4;
+          if (val >= 200) {
+            // occupied → bright accent
+            px[i]=79; px[i+1]=140; px[i+2]=255;
+          } else if (val >= 50) {
+            // free → dark blue-gray floor
+            px[i]=22; px[i+1]=30; px[i+2]=48;
+          } else {
+            // unknown → near-black
+            px[i]=12; px[i+1]=16; px[i+2]=26;
+          }
+          px[i+3] = 255;
+        }
+      }
+      mapCtx.putImageData(imgData, 0, 0);
+      mapStatus.textContent = `${w}×${h} · ${m.resolution.toFixed(2)} m/px`;
+    }
+
+    // ─── Joystick ────────────────────────────────────
+    const joystick = nipplejs.create({
+      zone: document.getElementById('joystickZone'),
+      mode: 'static',
+      position: { left: '50%', top: '50%' },
+      color: 'rgba(79,140,255,0.25)',
+      size: 160,
+      restOpacity: 0.7,
+      fadeTime: 150,
+    });
+
+    joystick.on('move', (evt, data) => {
+      if (!data || !data.vector) return;
+      const force = Math.min(data.force, 1.0);
+      currentLinear  = Math.round(data.vector.y * force * maxLinear * 100) / 100;
+      currentAngular = Math.round(-data.vector.x * force * maxAngular * 100) / 100;
+      linVal.textContent = Math.abs(currentLinear).toFixed(2);
+      angVal.textContent = Math.abs(currentAngular).toFixed(2);
+      const angle = data.angle ? data.angle.degree : 0;
+      if (force < 0.1) headingVal.textContent = '—';
+      else if (angle > 315 || angle <= 45) headingVal.textContent = '→';
+      else if (angle <= 135) headingVal.textContent = '↑';
+      else if (angle <= 225) headingVal.textContent = '←';
+      else headingVal.textContent = '↓';
+    });
+
+    joystick.on('end', () => {
+      currentLinear = 0; currentAngular = 0;
+      linVal.textContent = '0.00'; angVal.textContent = '0.00';
+      headingVal.textContent = '—';
+      publishCmdVel();
+    });
+
+    // ─── Sliders ─────────────────────────────────────
+    maxLinSlider.addEventListener('input', () => {
+      maxLinear = parseFloat(maxLinSlider.value);
+      maxLinLabel.textContent = maxLinear.toFixed(2) + ' m/s';
+    });
+    maxAngSlider.addEventListener('input', () => {
+      maxAngular = parseFloat(maxAngSlider.value);
+      maxAngLabel.textContent = maxAngular.toFixed(2) + ' rad/s';
+    });
+
+    // ─── Buttons ─────────────────────────────────────
+    btnStop.addEventListener('click', () => {
+      currentLinear = 0; currentAngular = 0;
+      linVal.textContent = '0.00'; angVal.textContent = '0.00';
+      headingVal.textContent = '—';
+      for (let i = 0; i < 5; i++) publishCmdVel();
+      showToast('⛔ Emergency Stop!');
+    });
+
+    btnReconnect.addEventListener('click', () => {
+      showToast('🔄 Reconnecting…');
+      connect();
+    });
+
+    btnSave.addEventListener('click', () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      btnSave.textContent = '💾 Saving…';
+      btnSave.disabled = true;
+      ws.send(JSON.stringify({ action: 'save_map' }));
+    });
+
+    btnPause.addEventListener('click', () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ action: 'pause_map' }));
+    });
+
+    // ─── Prevent pull-to-refresh ─────────────────────
+    document.addEventListener('touchmove', (e) => { e.preventDefault(); }, { passive: false });
+
+    // ─── Start ───────────────────────────────────────
+    connect();
+  </script>
+</body>
+</html>

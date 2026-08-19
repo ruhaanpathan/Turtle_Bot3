@@ -1,0 +1,52 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# diff_drive_robot parameters — Smartelex 15D Dual DC Motor Driver
+# ─────────────────────────────────────────────────────────────────────────────
+
+encoder_node:
+  ros__parameters:
+    # Encoder hardware: 11 pulses/rev, decoded on both edges of channel A.
+    # 11 PPR × 30:1 gearbox × 2 edges = 660 ticks/output-shaft revolution.
+    encoder_ppr: 11
+    gear_ratio: 30             # Gearbox ratio
+    publish_rate: 50.0         # Hz
+    poll_rate: 20000.0         # Hz; must exceed the maximum encoder edge rate
+
+    # GPIO pins (BCM numbering)
+    left_encoder_a: 17
+    left_encoder_b: 27
+    right_encoder_a: 22
+    right_encoder_b: 26
+    left_encoder_reverse: true
+    right_encoder_reverse: false
+
+motor_driver_node:
+  ros__parameters:
+    left_pwm_pin: 18
+    left_dir_pin: 23
+    right_pwm_pin: 19
+    right_dir_pin: 24
+    left_motor_reverse: true
+    right_motor_reverse: true
+    left_motor_scale: 1.00
+    right_motor_scale: 1.00
+
+    # Robot geometry
+    wheel_radius: 0.033       # meters (3.3 cm radius)
+    wheel_separation: 0.170   # meters (17.0 cm center-to-center)
+
+    pid_kp: 0.8
+    pid_ki: 0.1
+    pid_kd: 0.02
+    max_rpm: 200.0
+    pid_rate: 50.0
+    cmd_vel_timeout: 0.5
+
+odometry_node:
+  ros__parameters:
+    wheel_radius: 0.033
+    wheel_separation: 0.170
+    encoder_ppr: 11
+    gear_ratio: 30
+    odom_frame: "odom"
+    base_frame: "base_footprint"
+    publish_tf: false
